@@ -1,38 +1,34 @@
-from flask import Flask, render_template, request
-from keras.model import load_model
-from keras.preprocessing import image
+from flask import Flask, render_template, request, send_from_directory
+from Image_processing import extract_digits
+import numpy as np
+import os
 
 app = Flask(__name__)
 
-dic= {0: 'Cat', 1: 'Dog'}
+UPLOAD_FOLDER = 'static'
+if not os.path.exists(UPLOAD_FOLDER):
+    os.makedirs(UPLOAD_FOLDER)
 
-model = load_model('model.h5')
+app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 
-model.make_predict_function()
+@app.route('/uploads/<filename>')
+def send_file(filename):
+    return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
 
-def predict_label(img_path) :
-    i = image.load_img(img_path, target_size=(100, 100))
-    i = image.img_to_array(i)/255.0
-    i = i.reshape(1, 100, 100, 3)
-    p = model.predict_class(i)
-    return dic[p[0]]
+@app.route('/')
+def home():
+    return render_template('index.html', prediction=None)
 
-@app.route("/", methods=['GET', 'POST'])
-def kuch_bhi():
-    return render_template("index.html")
-
-@app.route("about")
-def about_page():
-    return "Say hello"
-
-@app.route("/submit", methods=['GET', 'POST'])
-def get_hours():
+@app.route('/submit', methods=['POST'])
+def predict():
     if request.method == 'POST':
-        img = request.files['my_image']
-
-        img_path = "static/" + img.filename
+        img = request.files['image']
+        img_path = os.path.join(app.config['UPLOAD_FOLDER'], img.filename)
         img.save(img_path)
 
-        p = predict_label(img_path)
+        prediction = extract_digits(img_path)
 
-    return render_template("index.html", prediction = p, img_path = img_path)
+        return render_template('index.html', prediction=prediction, img_path=img.filename)
+
+if __name__ == '__main__':
+    app.run(debug=True)
